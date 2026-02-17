@@ -308,9 +308,11 @@ def render_charts(df: pd.DataFrame, progreso: pd.DataFrame):
     # ── Gráfico 2: Progreso acumulado ─────────
     with col2:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        # Convertir fechas a string YYYY-MM-DD para evitar que Plotly las interprete como datetime
+        prog_labels = [str(f) for f in progreso['Fecha']]
         fig2 = go.Figure()
         fig2.add_trace(go.Scatter(
-            x=progreso['Fecha'].astype(str),
+            x=prog_labels,
             y=progreso['% Avance'],
             mode='lines+markers',
             fill='tozeroy',
@@ -329,6 +331,7 @@ def render_charts(df: pd.DataFrame, progreso: pd.DataFrame):
             title_font_color=COLOR_PRIMARY,
             plot_bgcolor='white', paper_bgcolor='white',
             yaxis=dict(range=[0, 105], ticksuffix='%'),
+            xaxis=dict(type='category'),
             height=350,
             margin=dict(t=50, b=40)
         )
@@ -365,24 +368,31 @@ def render_charts(df: pd.DataFrame, progreso: pd.DataFrame):
     # ── Gráfico 4: Paneles por Fecha ──────────
     with col4:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        fig4 = px.bar(
-            progreso,
-            x=progreso['Fecha'].astype(str),
-            y='Paneles del Día',
-            title='🎯 Paneles Limpiados por Fecha',
-            color_discrete_sequence=[COLOR_TEAL],
-            text='Paneles del Día'
-        )
-        fig4.update_traces(texttemplate='%{text:,}', textposition='outside')
+        # Convertir fechas a string para evitar interpretación como datetime
+        fecha_labels = [str(f) for f in progreso['Fecha']]
+        paneles_vals = progreso['Paneles del Día'].tolist()
+        fig4 = go.Figure(go.Bar(
+            x=fecha_labels,
+            y=paneles_vals,
+            text=paneles_vals,
+            texttemplate='%{text:,}',
+            textposition='outside',
+            marker_color=COLOR_TEAL,
+            marker_line_color=COLOR_TEAL,
+            marker_line_width=2,
+        ))
         fig4.update_layout(
-            plot_bgcolor='white', paper_bgcolor='white',
+            title='🎯 Paneles Limpiados por Fecha',
             title_font_color=COLOR_PRIMARY,
+            plot_bgcolor='white', paper_bgcolor='white',
             showlegend=False,
             height=350,
             margin=dict(t=50, b=40),
-            xaxis_title='Fecha',
-            yaxis_title='Paneles',
-            yaxis=dict(range=[0, progreso['Paneles del Día'].max() * 1.2])
+            xaxis=dict(title='Fecha', type='category'),
+            yaxis=dict(
+                title='Paneles',
+                range=[0, max(paneles_vals) * 1.2]
+            )
         )
         st.plotly_chart(fig4, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
