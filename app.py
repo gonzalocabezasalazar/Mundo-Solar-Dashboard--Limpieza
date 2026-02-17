@@ -492,7 +492,7 @@ def generar_excel(df: pd.DataFrame, progreso: pd.DataFrame, planta: str) -> byte
     # Título
     ws1.merge_cells('A1:F1')
     t = ws1['A1']
-    t.value     = f'INFORME DE LIMPIEZA EN SECO — PLANTA {planta.upper()}'
+    t.value     = f'INFORME DE LIMPIEZA — PLANTA {planta.upper()}'
     t.font      = Font(name='Segoe UI', bold=True, color=WHITE, size=16)
     t.fill      = PatternFill('solid', fgColor=PURPLE_DARK)
     t.alignment = center_align
@@ -934,7 +934,7 @@ with st.sidebar:
 # Header principal
 st.markdown("""
 <div class="main-header">
-    <h1>Dashboard Limpieza en Seco</h1>
+    <h1>Dashboard Limpieza</h1>
     <p>Sistema Universal de Control de Operaciones</p>
 </div>
 """, unsafe_allow_html=True)
