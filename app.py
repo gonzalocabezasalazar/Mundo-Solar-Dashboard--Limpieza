@@ -14,7 +14,7 @@ from openpyxl.utils import get_column_letter
 # CONFIGURACIÓN DE PÁGINA
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="Dashboard Limpieza en Seco",
+    page_title="Dashboard Limpieza",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
