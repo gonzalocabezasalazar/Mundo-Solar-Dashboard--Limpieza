@@ -288,17 +288,22 @@ def render_charts(df: pd.DataFrame, progreso: pd.DataFrame):
     with col1:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         tracker_data = df.groupby('Tracker')['Paneles Limpiados'].sum().reset_index().sort_values('Tracker')
-        fig1 = px.bar(
-            tracker_data,
-            x='Tracker', y='Paneles Limpiados',
-            title='📊 Paneles Limpiados por Tracker',
-            color_discrete_sequence=[COLOR_PRIMARY]
-        )
+        # Convertir a tipos nativos Python para evitar problemas con numpy.int64
+        t_labels = tracker_data['Tracker'].tolist()
+        t_values = [int(v) for v in tracker_data['Paneles Limpiados'].tolist()]
+        fig1 = go.Figure(go.Bar(
+            x=t_labels,
+            y=t_values,
+            marker_color=COLOR_PRIMARY,
+            marker_line_color=COLOR_PRIMARY,
+            hovertemplate='<b>%{x}</b><br>Paneles: %{y:,}<extra></extra>'
+        ))
         fig1.update_layout(
+            title='📊 Paneles Limpiados por Tracker',
             plot_bgcolor='white', paper_bgcolor='white',
             title_font_color=COLOR_PRIMARY,
             showlegend=False,
-            xaxis_tickangle=-45,
+            xaxis=dict(tickangle=-45, type='category'),
             height=350,
             margin=dict(t=50, b=60)
         )
@@ -308,22 +313,25 @@ def render_charts(df: pd.DataFrame, progreso: pd.DataFrame):
     # ── Gráfico 2: Progreso acumulado ─────────
     with col2:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        # Convertir fechas a string YYYY-MM-DD para evitar que Plotly las interprete como datetime
-        prog_labels = [str(f) for f in progreso['Fecha']]
+        # Convertir fechas a string YYYY-MM-DD y valores a float nativo
+        prog_labels = [str(f) for f in progreso['Fecha'].tolist()]
+        prog_values = [float(v) for v in progreso['% Avance'].tolist()]
+        prog_acum   = [int(v) for v in progreso['Paneles Acumulados'].tolist()]
+        prog_dia    = [int(v) for v in progreso['Paneles del Día'].tolist()]
         fig2 = go.Figure()
         fig2.add_trace(go.Scatter(
             x=prog_labels,
-            y=progreso['% Avance'],
+            y=prog_values,
             mode='lines+markers',
             fill='tozeroy',
             line=dict(color=COLOR_SECONDARY, width=3),
             marker=dict(size=10, color=COLOR_SECONDARY),
-            customdata=progreso[['Paneles Acumulados', 'Paneles del Día']].values,
+            customdata=list(zip(prog_acum, prog_dia)),
             hovertemplate=(
                 '<b>%{x}</b><br>'
                 'Avance: %{y:.2f}%<br>'
-                'Paneles acumulados: %{customdata[0]:,}<br>'
-                'Limpiados hoy: %{customdata[1]:,}<extra></extra>'
+                'Acumulado: %{customdata[0]:,} paneles<br>'
+                'Hoy: %{customdata[1]:,} paneles<extra></extra>'
             )
         ))
         fig2.update_layout(
@@ -331,7 +339,7 @@ def render_charts(df: pd.DataFrame, progreso: pd.DataFrame):
             title_font_color=COLOR_PRIMARY,
             plot_bgcolor='white', paper_bgcolor='white',
             yaxis=dict(range=[0, 105], ticksuffix='%'),
-            xaxis=dict(type='category'),
+            xaxis=dict(type='category'),   # ← clave: categoría, no datetime
             height=350,
             margin=dict(t=50, b=40)
         )
@@ -345,22 +353,25 @@ def render_charts(df: pd.DataFrame, progreso: pd.DataFrame):
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         if 'Potencia DC Asociada' in df.columns:
             pot_data = df.groupby('Inversor')['Potencia DC Asociada'].sum().reset_index()
-            fig3 = px.pie(
-                pot_data,
-                names='Inversor', values='Potencia DC Asociada',
-                title='⚡ Potencia DC por Inversor',
-                color_discrete_sequence=PALETTE,
-                hole=0.4
-            )
-            fig3.update_traces(
-                textposition='inside', textinfo='percent+label',
-                hovertemplate='<b>%{label}</b><br>%{value:.1f} kW<extra></extra>'
-            )
+            # Convertir a tipos nativos Python
+            pot_labels = pot_data['Inversor'].tolist()
+            pot_values = [float(v) for v in pot_data['Potencia DC Asociada'].tolist()]
+            fig3 = go.Figure(go.Pie(
+                labels=pot_labels,
+                values=pot_values,
+                hole=0.4,
+                marker=dict(colors=PALETTE[:len(pot_labels)]),
+                textinfo='percent+label',
+                textposition='inside',
+                hovertemplate='<b>%{label}</b><br>%{value:.1f} kW<br>%{percent}<extra></extra>'
+            ))
             fig3.update_layout(
+                title='⚡ Potencia DC por Inversor',
                 title_font_color=COLOR_PRIMARY,
                 paper_bgcolor='white',
                 height=350,
-                margin=dict(t=50, b=40)
+                margin=dict(t=50, b=40),
+                legend=dict(orientation='v', x=1, y=0.5)
             )
             st.plotly_chart(fig3, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
