@@ -908,7 +908,7 @@ with st.sidebar:
     st.markdown("""
     <div style="text-align:center; padding: 20px 0 10px;">
         <span style="font-size:2em;">⚡</span>
-        <h2 style="color:#667eea; margin:5px 0;">Limpieza en Seco</h2>
+        <h2 style="color:#667eea; margin:5px 0;">Limpieza</h2>
         <p style="color:#888; font-size:0.85em;">Dashboard Universal</p>
     </div>
     <hr style="border-color:#eee; margin-bottom:20px;">
