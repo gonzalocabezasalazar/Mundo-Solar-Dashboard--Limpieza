@@ -650,38 +650,40 @@ def generar_pdf_html(df: pd.DataFrame, progreso: pd.DataFrame,
                      planta: str,
                      fig_trackers, fig_progreso,
                      fig_potencia, fig_fecha) -> str:
-    """Genera HTML listo para imprimir como PDF"""
+    """Genera HTML con gráficos Plotly embebidos — funciona sin kaleido"""
 
     total_paneles  = int(df['Paneles Limpiados'].sum())
     total_strings  = int(df['Strings'].sum()) if 'Strings' in df.columns else 0
     max_avance     = float(progreso['% Avance'].max()) if len(progreso) > 0 else 0.0
     total_potencia = float(df['Potencia DC Asociada'].sum()) if 'Potencia DC Asociada' in df.columns else 0.0
 
-    # Convertir gráficos a imágenes base64
-    def fig_to_b64(fig):
-        try:
-            img_bytes = fig.to_image(format='png', width=700, height=320, scale=2)
-            return base64.b64encode(img_bytes).decode()
-        except Exception:
-            return None
+    # Convertir cada figura a HTML div embebible (sin kaleido, solo JS)
+    def fig_to_div(fig, height=300):
+        fig_copy = fig
+        fig_copy.update_layout(
+            height=height,
+            margin=dict(t=40, b=30, l=30, r=30),
+            paper_bgcolor='white',
+            plot_bgcolor='white',
+        )
+        return fig_copy.to_html(
+            full_html=False,
+            include_plotlyjs=False,   # se carga una sola vez abajo
+            config={'displayModeBar': False}
+        )
 
-    img1 = fig_to_b64(fig_trackers)
-    img2 = fig_to_b64(fig_progreso)
-    img3 = fig_to_b64(fig_potencia)
-    img4 = fig_to_b64(fig_fecha)
-
-    def img_tag(b64, alt):
-        if b64:
-            return f'<img src="data:image/png;base64,{b64}" style="width:100%;border-radius:8px;">'
-        return f'<p style="color:#999;text-align:center;">{alt}</p>'
+    div1 = fig_to_div(fig_trackers)
+    div2 = fig_to_div(fig_progreso)
+    div3 = fig_to_div(fig_potencia)
+    div4 = fig_to_div(fig_fecha)
 
     # Filas de tabla
     table_rows = ''
     for i, (_, r) in enumerate(df.iterrows()):
         bg = '#f8f9ff' if i % 2 == 0 else 'white'
-        avance = f"{float(r.get('% Avance', 0))*100:.0f}%"
+        avance   = f"{float(r.get('% Avance', 0))*100:.0f}%"
         potencia = f"{float(r.get('Potencia DC Asociada', 0)):.1f}"
-        strings = int(r['Strings']) if 'Strings' in df.columns else '-'
+        strings  = int(r['Strings']) if 'Strings' in df.columns else '-'
         table_rows += f"""
         <tr style="background:{bg};">
             <td>{r['Fecha']}</td>
@@ -693,72 +695,128 @@ def generar_pdf_html(df: pd.DataFrame, progreso: pd.DataFrame,
             <td>{potencia} kW</td>
         </tr>"""
 
+    # Filas de progreso
+    prog_rows = ''.join(
+        f"<tr><td>{r['Fecha']}</td>"
+        f"<td>{int(r['Paneles del Día']):,}</td>"
+        f"<td>{int(r['Paneles Acumulados']):,}</td>"
+        f"<td>{r['% Avance']:.2f}%</td></tr>"
+        for _, r in progreso.iterrows()
+    )
+
     html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <title>Informe Limpieza — Planta {planta}</title>
+<!-- Plotly JS embebido desde CDN -->
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
-    @page {{ margin: 15mm; }}
     * {{ margin:0; padding:0; box-sizing:border-box; }}
-    body {{ font-family:'Segoe UI',Arial,sans-serif; color:#333; font-size:11px; }}
+    body {{ font-family:'Segoe UI',Arial,sans-serif; color:#333; background:#f4f6fb; }}
+
     .header {{
         background: linear-gradient(135deg,#667eea,#764ba2);
         color: white;
-        padding: 25px 30px;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        padding: 28px 35px;
+        border-radius: 12px;
+        margin: 20px;
         text-align: center;
     }}
-    .header h1 {{ font-size:22px; margin-bottom:5px; }}
-    .header p  {{ font-size:12px; opacity:.85; }}
-    .kpis {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }}
+    .header h1 {{ font-size:26px; margin-bottom:6px; }}
+    .header p  {{ font-size:13px; opacity:.85; }}
+
+    .kpis {{
+        display: grid;
+        grid-template-columns: repeat(4,1fr);
+        gap: 15px;
+        margin: 0 20px 20px;
+    }}
     .kpi {{
-        background:white;
-        border: 2px solid #e8ecff;
-        border-radius:10px;
-        padding:15px 10px;
-        text-align:center;
+        background: white;
+        border-left: 5px solid #667eea;
+        border-radius: 10px;
+        padding: 18px 14px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(102,126,234,.15);
     }}
-    .kpi .label {{ color:#888; font-size:9px; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }}
-    .kpi .value {{ color:#667eea; font-size:20px; font-weight:bold; }}
+    .kpi .label {{
+        color: #888;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }}
+    .kpi .value {{
+        color: #667eea;
+        font-size: 24px;
+        font-weight: bold;
+    }}
+
     .section-title {{
-        color:#667eea;
-        font-size:13px;
-        font-weight:bold;
-        margin:20px 0 10px;
-        padding-bottom:5px;
-        border-bottom:2px solid #667eea;
+        color: #667eea;
+        font-size: 15px;
+        font-weight: bold;
+        margin: 25px 20px 10px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid #667eea;
     }}
-    .charts {{ display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px; }}
+
+    .charts-grid {{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin: 0 20px 20px;
+    }}
     .chart-box {{
-        background:white;
-        border:1px solid #eee;
-        border-radius:8px;
-        padding:10px;
+        background: white;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.08);
     }}
-    .chart-box h3 {{ color:#667eea; font-size:11px; margin-bottom:8px; }}
-    table {{ width:100%; border-collapse:collapse; font-size:10px; }}
+
+    .table-wrap {{ margin: 0 20px 20px; }}
+    table {{ width:100%; border-collapse:collapse; font-size:11px; }}
     thead tr {{ background:#667eea; color:white; }}
-    th {{ padding:8px 6px; text-align:left; font-weight:600; font-size:9px; text-transform:uppercase; }}
-    td {{ padding:6px; border-bottom:1px solid #f0f0f0; }}
-    tr:nth-child(even) td {{ background:#f8f9ff; }}
+    th {{ padding:9px 8px; text-align:left; font-weight:600; font-size:10px; text-transform:uppercase; }}
+    td {{ padding:7px 8px; border-bottom:1px solid #f0f0f0; }}
+
+    .prog-table {{ width:55%; margin:0 20px 20px; }}
+
     .footer {{
-        margin-top:25px;
-        text-align:center;
-        color:#aaa;
-        font-size:9px;
-        border-top:1px solid #eee;
-        padding-top:10px;
+        margin: 20px;
+        text-align: center;
+        color: #aaa;
+        font-size: 10px;
+        border-top: 1px solid #ddd;
+        padding-top: 12px;
+    }}
+
+    .print-btn {{
+        display: block;
+        margin: 15px auto;
+        padding: 12px 35px;
+        background: linear-gradient(135deg,#667eea,#764ba2);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(102,126,234,.4);
     }}
     @media print {{
-        .charts {{ page-break-inside:avoid; }}
-        table    {{ page-break-inside:auto; }}
-        tr       {{ page-break-inside:avoid; }}
+        .print-btn {{ display:none; }}
+        body {{ background:white; }}
+        .chart-box {{ box-shadow:none; border:1px solid #eee; }}
+        .charts-grid {{ page-break-inside:avoid; }}
     }}
 </style>
 </head>
 <body>
+
+<button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
 
 <div class="header">
     <h1>Informe de Limpieza en Seco</h1>
@@ -785,38 +843,24 @@ def generar_pdf_html(df: pd.DataFrame, progreso: pd.DataFrame,
 </div>
 
 <div class="section-title">Progreso Diario</div>
-<table style="margin-bottom:20px; width:60%">
+<table class="prog-table">
     <thead><tr>
         <th>Fecha</th><th>Paneles del Día</th>
         <th>Paneles Acumulados</th><th>% Avance</th>
     </tr></thead>
-    <tbody>
-    {''.join(f"<tr><td>{r['Fecha']}</td><td>{int(r['Paneles del Día']):,}</td><td>{int(r['Paneles Acumulados']):,}</td><td>{r['% Avance']:.2f}%</td></tr>"
-             for _, r in progreso.iterrows())}
-    </tbody>
+    <tbody>{prog_rows}</tbody>
 </table>
 
 <div class="section-title">Gráficos</div>
-<div class="charts">
-    <div class="chart-box">
-        <h3>📊 Paneles por Tracker</h3>
-        {img_tag(img1, 'Gráfico de Trackers')}
-    </div>
-    <div class="chart-box">
-        <h3>📈 Progreso Acumulado</h3>
-        {img_tag(img2, 'Gráfico de Progreso')}
-    </div>
-    <div class="chart-box">
-        <h3>⚡ Potencia por Inversor</h3>
-        {img_tag(img3, 'Gráfico de Potencia')}
-    </div>
-    <div class="chart-box">
-        <h3>🎯 Paneles por Fecha</h3>
-        {img_tag(img4, 'Gráfico por Fecha')}
-    </div>
+<div class="charts-grid">
+    <div class="chart-box">{div1}</div>
+    <div class="chart-box">{div2}</div>
+    <div class="chart-box">{div3}</div>
+    <div class="chart-box">{div4}</div>
 </div>
 
 <div class="section-title">Detalle de Registros</div>
+<div class="table-wrap">
 <table>
     <thead><tr>
         <th>Fecha</th><th>Tracker</th><th>Inversor</th>
@@ -824,6 +868,7 @@ def generar_pdf_html(df: pd.DataFrame, progreso: pd.DataFrame,
     </tr></thead>
     <tbody>{table_rows}</tbody>
 </table>
+</div>
 
 <div class="footer">
     Dashboard Limpieza en Seco · Sistema Universal de Control de Operaciones
